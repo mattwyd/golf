@@ -395,7 +395,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?
   await bookingFrame.getByText('Test group (3 people)').click();
   
   // Click the book now button
-  //await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
+  await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
   await bookingFrame.waitForLoadState('networkidle');
   
   // Take a screenshot after booking to verify success (if enabled)
