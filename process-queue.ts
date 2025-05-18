@@ -395,7 +395,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?
   await bookingFrame.getByText('Test group (3 people)').click();
   
   // Click the book now button
-  await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
+  //await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
   await bookingFrame.waitForLoadState('networkidle');
   
   // Take a screenshot after booking to verify success (if enabled)
@@ -444,6 +444,7 @@ async function processSingleRequest(
     
     // Wait for the selected date element to appear, indicating the date's data has loaded
     await waitForSelectedDateElement(bookingFrame, targetDateText);
+    await bookingFrame.waitForTimeout(3000); // Wait for 3 seconds to allow data to load
     await bookingFrame.waitForLoadState('networkidle');
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
