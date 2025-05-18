@@ -20,25 +20,21 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
+      
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       
       - name: Install dependencies
         run: |
-          npm init -y
-          npm install typescript ts-node @types/node @playwright/test
+          npm ci
           npx playwright install chromium
           npx playwright install-deps chromium
-          # Create a basic tsconfig.json file
-          echo '{
-            "compilerOptions": {
-              "target": "ES2020",
-              "module": "CommonJS",
-              "strict": true,
-              "esModuleInterop": true,
-              "skipLibCheck": true,
-              "forceConsistentCasingInFileNames": true,
-              "outDir": "./dist"
-            }
-          }' > tsconfig.json
   
       - name: Wait until 7:00 AM
         if: github.event_name == 'schedule'
