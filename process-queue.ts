@@ -345,15 +345,24 @@ const getScreenshotName = (action: string, requestId?: string): string => {
 }
 
 const screenshotWebsiteState = async (page: Page, screenshotName: string): Promise<void> => {
+  if (page.isClosed?.()) {
+    log(`WARNING: Cannot take screenshot "${screenshotName}" - page is already closed`);
+    return;
+  }
+
   if (takeScreenshots) {
-  log('Taking screenshot of the current website state');
-    const logsDir = path.join(__dirname, 'logs');
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
+    log('Taking screenshot of the current website state');
+    try {
+      const logsDir = path.join(__dirname, 'logs');
+      if (!fs.existsSync(logsDir)) {
+        fs.mkdirSync(logsDir, { recursive: true });
+      }
+      const screenshotPath = path.join(logsDir, screenshotName);
+      await page.screenshot({ path: screenshotPath, timeout: 5000 });
+      log(`Screenshot saved to ${screenshotPath}`);
+    } catch (error) {
+      log(`WARNING: Failed to take screenshot "${screenshotName}": ${error instanceof Error ? error.message : String(error)}`);
     }
-    const screenshotPath = path.join(logsDir, screenshotName);
-    await page.screenshot({ path: screenshotPath });
-    log(`Screenshot saved to ${screenshotPath}`);
     return;
   }
   log('Screenshotting is disabled, skipping screenshot');
@@ -367,6 +376,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?
   // Click the book now button
   await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
   await bookingFrame.waitForLoadState('networkidle');
+  
   // Take a screenshot after booking to verify success (if enabled)
   if (takeScreenshots) {
     log('Taking confirmation screenshot');
@@ -414,7 +424,6 @@ async function processSingleRequest(
     // Wait for the Golf Course element to appear, indicating the date's data has loaded
     await waitForGolfCourseElement(bookingFrame);
     await bookingFrame.waitForLoadState('networkidle');
-
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
     if (availableTimes.length === 0) {
