@@ -39,20 +39,21 @@ jobs:
               "outDir": "./dist"
             }
           }' > tsconfig.json
-    
-      # - name: Wait until 7:00 AM
-      #   run: |
-      #     current_time=$(date +%s)
-      #     target_time=$(date -d "today 07:00:00" +%s)
+  
+      - name: Wait until 7:00 AM
+        if: github.event_name == 'schedule'
+        run: |
+          current_time=$(date +%s)
+          target_time=$(date -d "today 07:00:00" +%s)
           
-      #     # If current time is already past 7:00 AM, don't wait
-      #     if [ $current_time -lt $target_time ]; then
-      #       sleep_seconds=$((target_time - current_time))
-      #       echo "Waiting for $sleep_seconds seconds until 7:00 AM..."
-      #       sleep $sleep_seconds
-      #     else
-      #       echo "It's already past 7:00 AM, proceeding immediately"
-      #     fi
+          # If current time is already past 7:00 AM, don't wait
+          if [ $current_time -lt $target_time ]; then
+            sleep_seconds=$((target_time - current_time))
+            echo "Waiting for $sleep_seconds seconds until 7:00 AM..."
+            sleep $sleep_seconds
+          else
+            echo "It's already past 7:00 AM, proceeding immediately"
+          fi
 
       - name: Process booking queue
         id: process-queue
