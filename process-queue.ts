@@ -380,7 +380,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?
   // Take a screenshot after booking to verify success (if enabled)
   if (takeScreenshots) {
     log('Taking confirmation screenshot');
-    screenshotWebsiteState(page, getScreenshotName("booking-confirmation", requestId));
+    await screenshotWebsiteState(page, getScreenshotName("booking-confirmation", requestId));
     return;
   } 
 };
@@ -399,7 +399,7 @@ async function processSingleRequest(
     const day = Number(dayStr);
     const playDateObj = new Date(year, month, day);
     if (isNaN(playDateObj.getTime())) {
-      screenshotWebsiteState(page, getScreenshotName("invalid-date-request", request.id));
+      await screenshotWebsiteState(page, getScreenshotName("invalid-date-request", request.id));
       request.status = 'error';
       request.processedDate = new Date().toISOString();
       request.failureReason = `Invalid date in request: ${request.playDate}`;
@@ -411,7 +411,7 @@ async function processSingleRequest(
 
     const dateClicked = await clickOnDateInFrame(bookingFrame, targetDateText);
     if (!dateClicked) {
-      screenshotWebsiteState(page, getScreenshotName("failed-to-select-date", request.id));
+      await screenshotWebsiteState(page, getScreenshotName("failed-to-select-date", request.id));
       request.status = 'failed';
       request.processedDate = new Date().toISOString();
       request.failureReason = `Could not select date "${targetDateText}"`;
@@ -427,7 +427,7 @@ async function processSingleRequest(
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
     if (availableTimes.length === 0) {
-      screenshotWebsiteState(page, getScreenshotName("no-available-time", request.id));
+      await screenshotWebsiteState(page, getScreenshotName("no-available-time", request.id));
       request.status = 'failed';
       request.processedDate = new Date().toISOString();
       request.failureReason = 'No times with 4 spots in range';

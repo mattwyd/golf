@@ -20,7 +20,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
+          cache: 'npm' # This caches the global npm cache
+      
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
       
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -30,9 +39,12 @@ jobs:
           restore-keys: |
             playwright-${{ runner.os }}-
       
-      - name: Install dependencies
+      - name: Install project dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+          
+      - name: Install Playwright browser and OS dependencies
         run: |
-          npm ci
           npx playwright install chromium
           npx playwright install-deps chromium
   
@@ -75,4 +87,3 @@ jobs:
         with:
           commit_message: Update booking queue after processing
           file_pattern: booking-queue.json
-      
