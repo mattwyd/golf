@@ -358,7 +358,7 @@ const screenshotWebsiteState = async (page: Page, screenshotName: string): Promi
         fs.mkdirSync(logsDir, { recursive: true });
       }
       const screenshotPath = path.join(logsDir, screenshotName);
-      await page.screenshot({ path: screenshotPath, timeout: 5000 });
+      await page.screenshot({ path: screenshotPath, timeout: 5000, fullPage: true });
       log(`Screenshot saved to ${screenshotPath}`);
     } catch (error) {
       log(`WARNING: Failed to take screenshot "${screenshotName}": ${error instanceof Error ? error.message : String(error)}`);
