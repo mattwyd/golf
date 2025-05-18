@@ -32,6 +32,7 @@ jobs:
             ${{ runner.os }}-node-modules-
       
       - name: Cache Playwright browsers
+        id: cache-playwright-browsers # Added id
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -44,6 +45,7 @@ jobs:
         run: npm ci
           
       - name: Install Playwright browser and OS dependencies
+        if: steps.cache-playwright-browsers.outputs.cache-hit != 'true' # Added conditional
         run: |
           npx playwright install chromium
           npx playwright install-deps chromium
