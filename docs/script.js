@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', function() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     dateInput.valueAsDate = tomorrow;
     
+    // Auto-detect GitHub repository information from URL (for GitHub Pages)
+    autoDetectRepoInfo();
+    
     // Load saved data from localStorage
     loadSavedData();
     
@@ -41,6 +44,42 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchBookingQueue();
     
     // Functions
+    function autoDetectRepoInfo() {
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+        
+        // Check if we're on GitHub Pages
+        if (hostname.endsWith('github.io')) {
+            // Extract username from github.io subdomain (username.github.io)
+            const usernameMatch = hostname.match(/^([^.]+)\.github\.io$/);
+            
+            if (usernameMatch && usernameMatch[1]) {
+                const username = usernameMatch[1];
+                
+                // For user sites (username.github.io), the repo name is usually the username.github.io
+                if (pathname === '/' || pathname.startsWith('/index.html')) {
+                    localStorage.setItem('repoOwner', username);
+                    localStorage.setItem('repoName', `${username}.github.io`);
+                    console.log(`Detected user GitHub Pages: ${username}/${username}.github.io`);
+                    return;
+                }
+                
+                // For project sites (username.github.io/repo-name/), extract the repo name from the path
+                const projectMatch = pathname.match(/^\/([^\/]+)/);
+                if (projectMatch && projectMatch[1]) {
+                    const repoName = projectMatch[1];
+                    localStorage.setItem('repoOwner', username);
+                    localStorage.setItem('repoName', repoName);
+                    console.log(`Detected project GitHub Pages: ${username}/${repoName}`);
+                    return;
+                }
+            }
+        }
+        
+        // If we can't auto-detect, we'll fall back to the stored values or manual entry
+        console.log('Could not auto-detect GitHub repository information from URL');
+    }
+    
     function loadSavedData() {
         // Load token
         const savedToken = localStorage.getItem('githubToken');
@@ -67,8 +106,20 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Default values if not set
         if (!repoOwner || !repoName) {
-            showStatus('Please set repository information in Settings', 'error');
-            return null;
+            // Check if we can auto-detect from URL
+            autoDetectRepoInfo();
+            
+            // Try again after auto-detect
+            repoOwner = localStorage.getItem('repoOwner');
+            repoName = localStorage.getItem('repoName');
+            
+            if (!repoOwner || !repoName) {
+                showStatus('Repository info auto-detection failed. Please set repository information in Settings', 'error');
+                openSettings();
+                return null;
+            } else {
+                showStatus(`Using detected repository: ${repoOwner}/${repoName}`, 'info');
+            }
         }
         
         return { owner: repoOwner, name: repoName };
