@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchBookingQueue() {
         const token = tokenInput.value;
         if (!token) {
-            queueDataContainer.innerHTML = '<p>Please enter your GitHub token to view the queue.</p>';
+            queueDataContainer.innerHTML = '<p>Please enter your Booking Password to view the queue.</p>';
             return;
         }
         

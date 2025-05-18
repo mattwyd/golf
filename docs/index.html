@@ -29,9 +29,9 @@
         </div>
         
         <div class="form-group">
-            <label for="token">GitHub Token:</label>
-            <input type="password" id="token" placeholder="Enter your GitHub token" required>
-            <small class="helper-text">Your token is saved locally and only used for accessing the booking queue.</small>
+            <label for="token">Password:</label>
+            <input type="password" id="token" placeholder="Enter your Booking password" required>
+            <small class="helper-text">Your passowrd is saved locally and only used for accessing the booking queue.</small>
         </div>
         
         <button id="bookButton">Book Tee Time</button>
@@ -49,29 +49,8 @@
     
     <div class="footer">
         <p>© 2025 Golf Tee Time Booker</p>
-        <p><a href="#" id="settingsButton">Settings</a></p>
     </div>
-    
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Settings</h2>
-            
-            <div class="form-group">
-                <label for="repoOwner">Repository Owner:</label>
-                <input type="text" id="repoOwner" placeholder="GitHub Username">
-            </div>
-            
-            <div class="form-group">
-                <label for="repoName">Repository Name:</label>
-                <input type="text" id="repoName" placeholder="Repository Name">
-            </div>
-            
-            <button id="saveSettingsButton">Save Settings</button>
-        </div>
-    </div>
-    
+
     <script src="script.js"></script>
 </body>
 </html>
