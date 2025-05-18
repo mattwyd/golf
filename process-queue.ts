@@ -179,7 +179,7 @@ async function simulateProcessingRequests(
 
 const navigateToBookingPage = async (page: Page): Promise<void> => {
   log('Navigating to booking page');
-    await page.getByText('Tee Times').click();
+    await page.goto('https://lorabaygolf.clubhouseonline-e3.com/TeeTimes/TeeSheet.aspx');
     await page.getByText('My Bookings').waitFor({ timeout: 10000 }).catch(() => {
       log('WARNING: Could not detect navigation success indicator (My Bookings link)');
     });}
