@@ -311,6 +311,27 @@ const clickOnDateInFrame = async (bookingFrame: Frame, targetDateText: string): 
 };
 
 /**
+ * Wait for the selected date element to appear, indicating the date's data has loaded
+ */
+const waitForSelectedDateElement = async (bookingFrame: Frame, targetDateText: string, timeoutMs: number = 10000): Promise<void> => {
+  log(`Waiting for selected date element "${targetDateText}" to appear`);
+  try {
+    // Selector for the parent div with 'date-selected' class
+    // and a child div.date.ng-binding that contains the targetDateText
+    const selector = `div.item.ng-scope.slick-slide.date-selected:has(div.date.ng-binding:text-is("${targetDateText}"))`;
+    await bookingFrame.waitForSelector(
+      selector,
+      { state: 'visible', timeout: timeoutMs }
+    );
+    log(`Selected date element "${targetDateText}" found, continuing with booking`);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    log(`ERROR: Timed out waiting for selected date element "${targetDateText}": ${errorMessage}`);
+    throw new Error(`Failed to load tee times: Selected date element "${targetDateText}" not found after ${timeoutMs}ms`);
+  }
+};
+
+/**
  * Wait for the Golf Course element to appear, indicating the date's data has loaded
  */
 const waitForGolfCourseElement = async (bookingFrame: Frame, timeoutMs: number = 10000): Promise<void> => {
@@ -408,7 +429,7 @@ async function processSingleRequest(
     }
     const targetDateText = `${playDateObj.toLocaleString('en-US', { month: 'short' })} ${playDateObj.getDate()}`;
     log(`Attempting to select date: "${targetDateText}"`);
-
+    await bookingFrame.waitForLoadState('networkidle');
     const dateClicked = await clickOnDateInFrame(bookingFrame, targetDateText);
     if (!dateClicked) {
       await screenshotWebsiteState(page, getScreenshotName("failed-to-select-date", request.id));
@@ -421,8 +442,8 @@ async function processSingleRequest(
 
     log(`Successfully clicked date "${targetDateText}"`);
     
-    // Wait for the Golf Course element to appear, indicating the date's data has loaded
-    await waitForGolfCourseElement(bookingFrame);
+    // Wait for the selected date element to appear, indicating the date's data has loaded
+    await waitForSelectedDateElement(bookingFrame, targetDateText);
     await bookingFrame.waitForLoadState('networkidle');
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
