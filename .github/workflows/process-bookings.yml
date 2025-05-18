@@ -59,6 +59,16 @@ jobs:
           GOLF_USERNAME: ${{ secrets.GOLF_USERNAME }}
           GOLF_PASSWORD: ${{ secrets.GOLF_PASSWORD }}
           DATE_OVERRIDE: ${{ secrets.DATE_OVERRIDE }}
+          TAKE_SCREENSHOTS: ${{ secrets.TAKE_SCREENSHOTS }}
+      
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v3
+        if: ${{ env.TAKE_SCREENSHOTS != 'false' }}
+        with:
+          name: booking-screenshots
+          path: logs/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       
       - name: Commit updated queue
         uses: stefanzweifel/git-auto-commit-action@v4

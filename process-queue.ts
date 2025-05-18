@@ -39,6 +39,7 @@ interface AvailableTime {
 // Local testing flags
 const isTestMode = process.env.TEST_MODE === 'true';
 const simulateBooking = process.env.SIMULATE_BOOKING === 'true';
+const takeScreenshots = process.env.TAKE_SCREENSHOTS !== 'false'; // Default to true unless explicitly disabled
 
 // Helper function to get today's date with optional override from environment variable
 const getTodayDate = (): string => {
@@ -191,9 +192,6 @@ async function simulateProcessingRequests(
 const navigateToBookingPage = async (page: Page): Promise<void> => {
   log('Navigating to booking page');
   await page.goto('https://lorabaygolf.clubhouseonline-e3.com/TeeTimes/TeeSheet.aspx');
-  await page.getByText('My Bookings').waitFor({ timeout: 10000 }).catch(() => {
-    log('WARNING: Could not detect navigation success indicator (My Bookings link)');
-  });
 }
 
 async function processRealRequests(
@@ -206,7 +204,7 @@ async function processRealRequests(
   let browser: Browser | null = null;
 
   try {
-    browser = await chromium.launch({ headless: !isTestMode });
+    browser = await chromium.launch({ headless: false });
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -214,8 +212,11 @@ async function processRealRequests(
     const page = await context.newPage();
     await loginToWebsite(page);
     await navigateToBookingPage(page);
+    const bookingFrame = await getBookingFrame(page);
+    await waitForGolfCourseElement(bookingFrame);
+    await bookingFrame.waitForLoadState('networkidle');
     for (const request of todayRequests) {
-      const result = await processSingleRequest(page, request);
+      const result = await processSingleRequest(page, bookingFrame, request);
       results += result.message;
       processedCount += result.success ? 1 : 0;
     }
@@ -228,7 +229,7 @@ async function processRealRequests(
   queueData.bookingRequests = queueData.bookingRequests.filter(request =>
     !(request.playDate === getTodayDate() && request.status !== 'pending')
   );
-  queueData.processedRequests = [...todayRequests, ...queueData.processedRequests];
+  queueData.processedRequests = [...todayRequests.filter(request => request.status === "pending"), ...queueData.processedRequests];
   fs.writeFileSync(queuePath, JSON.stringify(queueData, null, 2));
   return { results, processedCount };
 }
@@ -308,6 +309,24 @@ const clickOnDateInFrame = async (bookingFrame: Frame, targetDateText: string): 
   }, targetDateText);
 };
 
+/**
+ * Wait for the Golf Course element to appear, indicating the date's data has loaded
+ */
+const waitForGolfCourseElement = async (bookingFrame: Frame, timeoutMs: number = 10000): Promise<void> => {
+  log('Waiting for Golf Course element to appear after date selection');
+  try {
+    await bookingFrame.waitForSelector(
+      'div.input-wpr:has(label:text-is("Golf Course")) div.input:text-is("Lora Bay")', 
+      { state: 'visible', timeout: timeoutMs }
+    );
+    log('Golf Course element found, continuing with booking');
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    log(`ERROR: Timed out waiting for Golf Course element: ${errorMessage}`);
+    throw new Error(`Failed to load tee times: Golf Course element not found after ${timeoutMs}ms`);
+  }
+};
+
 
 const getBookingFrame = async (page: Page): Promise<Frame> => {
   const iframeHandle = await page.locator('iframe#module').elementHandle();
@@ -318,21 +337,50 @@ const getBookingFrame = async (page: Page): Promise<Frame> => {
 };
 
 
-const confirmBookingInFrame = async (bookingFrame: Frame): Promise<void> => {
+const getScreenshotName = (action: string, requestId?: string): string => {
+      return requestId 
+      ? `${action}-${requestId}-${new Date().toISOString().replace(/:/g, '-')}.png`
+      : `${action}-${new Date().toISOString().replace(/:/g, '-')}.png`;
+}
+
+const screenshotWebsiteState = async (page: Page, screenshotName: string): Promise<void> => {
+  if (takeScreenshots) {
+  log('Taking screenshot of the current website state');
+    const logsDir = path.join(__dirname, 'logs');
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    const screenshotPath = path.join(logsDir, screenshotName);
+    await page.screenshot({ path: screenshotPath });
+    log(`Screenshot saved to ${screenshotPath}`);
+    return;
+  }
+  log('Screenshotting is disabled, skipping screenshot');
+};
+
+const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?: string): Promise<void> => {
   log('Confirming booking inside iframe');
   await bookingFrame.getByText('ADD BUDDIES & GROUPS').click();
   await bookingFrame.getByText('Test group (3 people)').click();
+  
+  // Click the book now button
   await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
+  await bookingFrame.waitForLoadState('networkidle');
+  // Take a screenshot after booking to verify success (if enabled)
+  if (takeScreenshots) {
+    log('Taking confirmation screenshot');
+    screenshotWebsiteState(page, getScreenshotName("booking-confirmation", requestId));
+    return;
+  } 
 };
 
 async function processSingleRequest(
   page: Page,
+  bookingFrame: Frame,
   request: BookingRequest
 ): Promise<{ message: string; success: boolean }> {
   try {
     log(`Processing request ${request.id} for ${request.playDate}`);
-    const bookingFrame = await getBookingFrame(page);
-
     // Build target date string e.g. "Jul 12"
     const [yearStr, monthStr, dayStr] = request.playDate.split('-');
     const year = Number(yearStr);
@@ -340,6 +388,7 @@ async function processSingleRequest(
     const day = Number(dayStr);
     const playDateObj = new Date(year, month, day);
     if (isNaN(playDateObj.getTime())) {
+      screenshotWebsiteState(page, getScreenshotName("invalid-date-request", request.id));
       request.status = 'error';
       request.processedDate = new Date().toISOString();
       request.failureReason = `Invalid date in request: ${request.playDate}`;
@@ -351,6 +400,7 @@ async function processSingleRequest(
 
     const dateClicked = await clickOnDateInFrame(bookingFrame, targetDateText);
     if (!dateClicked) {
+      screenshotWebsiteState(page, getScreenshotName("failed-to-select-date", request.id));
       request.status = 'failed';
       request.processedDate = new Date().toISOString();
       request.failureReason = `Could not select date "${targetDateText}"`;
@@ -359,10 +409,15 @@ async function processSingleRequest(
     }
 
     log(`Successfully clicked date "${targetDateText}"`);
-    await bookingFrame.waitForTimeout(3000); // TODO: replace with smarter wait
+    
+    // Wait for the Golf Course element to appear, indicating the date's data has loaded
+    await waitForGolfCourseElement(bookingFrame);
+    await bookingFrame.waitForLoadState('networkidle');
+
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
     if (availableTimes.length === 0) {
+      screenshotWebsiteState(page, getScreenshotName("no-available-time", request.id));
       request.status = 'failed';
       request.processedDate = new Date().toISOString();
       request.failureReason = 'No times with 4 spots in range';
@@ -375,7 +430,7 @@ async function processSingleRequest(
     log(`Attempting to book time ${selectedSlot.time} using id ${selectedSlot.id}`);
 
     await bookingFrame.click(`[data-playwright-id="${selectedSlot.id}"]`);
-    await confirmBookingInFrame(bookingFrame);
+    await confirmBookingInFrame(bookingFrame, page, request.id);
 
     request.status = 'success';
     request.processedDate = new Date().toISOString();
@@ -409,7 +464,7 @@ async function processQueue(): Promise<void> {
   const todayRequests = filterTodayRequests(queueData);
 
   if (todayRequests.length === 0) {
-    log(`No booking requests for today (${new Date().toISOString().split('T')[0]})`);
+    log(`No booking requests for today (${getTodayDate()})`);
     console.log('::set-output name=processed_count::0');
     console.log('::set-output name=results::No booking requests for today.');
     return;
