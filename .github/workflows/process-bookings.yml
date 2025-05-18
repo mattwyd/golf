@@ -58,6 +58,7 @@ jobs:
         env:
           GOLF_USERNAME: ${{ secrets.GOLF_USERNAME }}
           GOLF_PASSWORD: ${{ secrets.GOLF_PASSWORD }}
+          DATE_OVERRIDE: ${{ secrets.DATE_OVERRIDE }}
       
       - name: Commit updated queue
         uses: stefanzweifel/git-auto-commit-action@v4

@@ -40,6 +40,17 @@ interface AvailableTime {
 const isTestMode = process.env.TEST_MODE === 'true';
 const simulateBooking = process.env.SIMULATE_BOOKING === 'true';
 
+// Helper function to get today's date with optional override from environment variable
+const getTodayDate = (): string => {
+  if (process.env.DATE_OVERRIDE) {
+    // Format should be YYYY-MM-DD
+    const dateOverride = process.env.DATE_OVERRIDE;
+    log(`Using date override: ${dateOverride}`);
+    return dateOverride;
+  }
+  return new Date().toISOString().split('T')[0];
+};
+
 // Setup logging
 const logDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logDir)) {
@@ -71,7 +82,7 @@ const createTestData = (): void => {
     log('Creating test queue data');
     
     // Create a test request for today
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDate();
     const testQueue: QueueData = {
       bookingRequests: [
         {
@@ -142,7 +153,7 @@ async function initializeQueue(): Promise<QueueData> {
 }
 
 function filterTodayRequests(queueData: QueueData): BookingRequest[] {
-  const today = new Date(2025, 5, 7).toISOString().split('T')[0];
+  const today = getTodayDate();
   return queueData.bookingRequests.filter(request =>
     request.playDate === today && request.status === 'pending'
   );
@@ -170,7 +181,7 @@ async function simulateProcessingRequests(
   }
 
   queueData.bookingRequests = queueData.bookingRequests.filter(request =>
-    !(request.playDate === new Date().toISOString().split('T')[0] && request.status !== 'pending')
+    !(request.playDate === getTodayDate() && request.status !== 'pending')
   );
   queueData.processedRequests = [...todayRequests, ...queueData.processedRequests];
   fs.writeFileSync(queuePath, JSON.stringify(queueData, null, 2));
@@ -215,7 +226,7 @@ async function processRealRequests(
   }
 
   queueData.bookingRequests = queueData.bookingRequests.filter(request =>
-    !(request.playDate === new Date().toISOString().split('T')[0] && request.status !== 'pending')
+    !(request.playDate === getTodayDate() && request.status !== 'pending')
   );
   queueData.processedRequests = [...todayRequests, ...queueData.processedRequests];
   fs.writeFileSync(queuePath, JSON.stringify(queueData, null, 2));
