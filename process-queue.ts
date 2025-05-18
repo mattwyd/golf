@@ -179,10 +179,8 @@ async function simulateProcessingRequests(
 
 const navigateToBookingPage = async (page: Page): Promise<void> => {
   log('Navigating to booking page');
-    await page.goto('https://lorabaygolf.clubhouseonline-e3.com/TeeTimes/TeeSheet.aspx');
-    await page.getByText('My Bookings').waitFor({ timeout: 10000 }).catch(() => {
-      log('WARNING: Could not detect navigation success indicator (My Bookings link)');
-    });}
+  await page.goto('https://lorabaygolf.clubhouseonline-e3.com/TeeTimes/TeeSheet.aspx');
+}
 
 async function processRealRequests(
   todayRequests: BookingRequest[],
@@ -194,7 +192,7 @@ async function processRealRequests(
   let browser: Browser | null = null;
 
   try {
-    browser = await chromium.launch({ headless: false });//TODO: Set to true for production }});
+    browser = await chromium.launch({ headless: !isTestMode });
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -310,10 +308,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame): Promise<void> => {
   log('Confirming booking inside iframe');
   await bookingFrame.getByText('ADD BUDDIES & GROUPS').click();
   await bookingFrame.getByText('Test group (3 people)').click();
-  await bookingFrame.getByText('BOOK NOW').waitFor({ timeout: 10000 }).catch(() => {
-    log('WARNING: Could not detect BOOK NOW button inside iframe');
-  });
-  // await bookingFrame.getByText('BOOK NOW').click(); // Uncomment for production
+  await bookingFrame.getByText('BOOK NOW').click();
 };
 
 async function processSingleRequest(
@@ -350,7 +345,7 @@ async function processSingleRequest(
     }
 
     log(`Successfully clicked date "${targetDateText}"`);
-    await bookingFrame.waitForTimeout(3000); // TODO: replace with smarter wait
+    await bookingFrame.waitForTimeout(1000); // TODO: replace with smarter wait
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
     if (availableTimes.length === 0) {
@@ -371,9 +366,8 @@ async function processSingleRequest(
     request.status = 'success';
     request.processedDate = new Date().toISOString();
     request.bookedTime = selectedSlot.time;
-    request.confirmationNumber = 'TEST'; // TODO: real confirmation number
 
-    return { message: `✅ Request ${request.id}: Booked for ${selectedSlot.time} (Confirmation: ${request.confirmationNumber})\n`, success: true };
+    return { message: `✅ Request ${request.id}: Booked for ${selectedSlot.time}\n`, success: true };
   } catch (error) {
     request.status = 'error';
     request.processedDate = new Date().toISOString();
