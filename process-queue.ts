@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { chromium, Page, Browser } from '@playwright/test';
+import { chromium, Page, Browser, Frame } from '@playwright/test';
 import { WriteStream } from 'fs';
 import * as dotenv from 'dotenv';
 
@@ -142,7 +142,7 @@ async function initializeQueue(): Promise<QueueData> {
 }
 
 function filterTodayRequests(queueData: QueueData): BookingRequest[] {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date(2025, 5, 7).toISOString().split('T')[0];
   return queueData.bookingRequests.filter(request =>
     request.playDate === today && request.status === 'pending'
   );
@@ -236,94 +236,100 @@ async function loginToWebsite(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Login' }).click();
 }
 
-async function findAvailableTeeSlots(page: Page, timeRange: TimeRange): Promise<Array<{ time: string; id: string; sortableTime: string }>> {
-  return page.evaluate(({ startHour, endHour }) => {
+async function findAvailableTeeSlotsInFrame(
+  bookingFrame: Frame,
+  timeRange: TimeRange
+): Promise<Array<{ time: string; id: string; sortableTime: string }>> {
+  return bookingFrame.evaluate(({ startHour, endHour }) => {
     const slots: Array<{ time: string; id: string; sortableTime: string }> = [];
     let slotIdCounter = 0;
 
-    // Helper function to parse time like "7:00 AM" or "12:30 PM" to HH:MM (24-hour) and hour number
     const parseTime = (timeStrWithAmPm: string): { hour: number; minute: number; formattedTime: string } | null => {
       const timeMatch = timeStrWithAmPm.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
       if (!timeMatch) return null;
-
       let hour = parseInt(timeMatch[1], 10);
       const minute = parseInt(timeMatch[2], 10);
       const ampm = timeMatch[3].toUpperCase();
-
       if (ampm === 'PM' && hour !== 12) {
         hour += 12;
-      } else if (ampm === 'AM' && hour === 12) { // 12 AM is 00 hours
+      } else if (ampm === 'AM' && hour === 12) {
         hour = 0;
       }
-      // 12 PM is 12 hours, no change needed. Other AM hours are also fine.
-      
-      return { 
-          hour, 
-          minute, 
-          formattedTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` 
-      };
+      return { hour, minute, formattedTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` };
     };
 
     const flexRows = document.querySelectorAll('div.flex-row.ng-scope');
-    flexRows.forEach((row) => {
-      if (row.classList.contains('unavailable')) {
-        return; // Skip rows marked as unavailable
-      }
-
+    flexRows.forEach(row => {
+      if (row.classList.contains('unavailable')) return;
       const availabilityDiv = row.querySelector('div.availability.ng-scope');
-      if (availabilityDiv) {
-        const valueStrong = availabilityDiv.querySelector('strong.value.ng-binding');
-        // Check if there are exactly 4 available spots
-        if (valueStrong && valueStrong.textContent && parseInt(valueStrong.textContent.trim(), 10) === 4) {
-          const teeSheetLeftCol = row.querySelector('div.teesheet-leftcol.ng-scope');
-          if (teeSheetLeftCol) {
-            const timeDiv = teeSheetLeftCol.querySelector('div.time.ng-binding');
-            if (timeDiv && timeDiv.textContent) {
-              const fullText = timeDiv.textContent.trim();
-              // Regex to extract time like "7:00 AM" from the end of the string
-              const timeStrMatch = fullText.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))$/i);
-              
-              if (timeStrMatch && timeStrMatch[1]) {
-                const parsedTimeDetails = parseTime(timeStrMatch[1]);
-                if (parsedTimeDetails && parsedTimeDetails.hour >= startHour && parsedTimeDetails.hour <= endHour) {
-                  const uniqueId = `playwright-slot-${slotIdCounter++}`;
-                  if (timeDiv instanceof HTMLElement) {
-                       timeDiv.setAttribute('data-playwright-id', uniqueId);
-                  }
-                 
-                  slots.push({ 
-                      time: parsedTimeDetails.formattedTime, // e.g., "07:00" or "13:00"
-                      id: uniqueId,
-                      sortableTime: parsedTimeDetails.formattedTime 
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
+      if (!availabilityDiv) return;
+      const valueStrong = availabilityDiv.querySelector('strong.value.ng-binding');
+      if (!valueStrong || !valueStrong.textContent || parseInt(valueStrong.textContent.trim(), 10) !== 4) return;
+      const timeDiv = row.querySelector('div.teesheet-leftcol.ng-scope div.time.ng-binding');
+      if (!timeDiv || !timeDiv.textContent) return;
+      const timeStrMatch = timeDiv.textContent.trim().match(/(\d{1,2}:\d{2}\s*(?:AM|PM))$/i);
+      if (!timeStrMatch || !timeStrMatch[1]) return;
+      const parsed = parseTime(timeStrMatch[1]);
+      if (!parsed || parsed.hour < startHour || parsed.hour > endHour) return;
+      const uniqueId = `playwright-slot-${slotIdCounter++}`;
+      if (timeDiv instanceof HTMLElement) timeDiv.setAttribute('data-playwright-id', uniqueId);
+      slots.push({ time: parsed.formattedTime, id: uniqueId, sortableTime: parsed.formattedTime });
     });
     return slots;
   }, { startHour: timeRange.start, endHour: timeRange.end });
+  
 }
 
+const clickOnDateInFrame = async (bookingFrame: Frame, targetDateText: string): Promise<boolean> => {
+  return bookingFrame.evaluate((dateText: string) => {
+    const dateElements = document.querySelectorAll('div.item.ng-scope.slick-slide');
+    for (const el of dateElements) {
+      const dateDiv = el.querySelector('div.date.ng-binding');
+      if (dateDiv && dateDiv.textContent && dateDiv.textContent.trim().includes(dateText)) {
+        if (el instanceof HTMLElement) {
+          el.click();
+          return true;
+        }
+      }
+    }
+    return false;
+  }, targetDateText);
+};
 
-async function processSingleRequest(page: Page, request: BookingRequest): Promise<{ message: string; success: boolean }> {
+
+const getBookingFrame = async (page: Page): Promise<Frame> => {
+  const iframeHandle = await page.locator('iframe#module').elementHandle();
+  if (!iframeHandle) throw new Error('Booking iframe not found');
+  const frame = await iframeHandle.contentFrame();
+  if (!frame) throw new Error('Unable to resolve content frame');
+  return frame;
+};
+
+
+const confirmBookingInFrame = async (bookingFrame: Frame): Promise<void> => {
+  log('Confirming booking inside iframe');
+  await bookingFrame.getByText('ADD BUDDIES & GROUPS').click();
+  await bookingFrame.getByText('Test group (3 people)').click();
+  await bookingFrame.getByText('BOOK NOW').waitFor({ timeout: 10000 }).catch(() => {
+    log('WARNING: Could not detect BOOK NOW button inside iframe');
+  });
+  // await bookingFrame.getByText('BOOK NOW').click(); // Uncomment for production
+};
+
+async function processSingleRequest(
+  page: Page,
+  request: BookingRequest
+): Promise<{ message: string; success: boolean }> {
   try {
     log(`Processing request ${request.id} for ${request.playDate}`);
-    // Assuming navigateToBookingPage (called in processRealRequests) has already brought us to the correct page.
-    // Removed: await page.goto('https://yourgolfcourse.com/book-tee-time'); 
+    const bookingFrame = await getBookingFrame(page);
 
-    // Parse playDate (YYYY-MM-DD) and format to "Mon DD" (e.g., "Jul 12")
-    const parts = request.playDate.split('-');
-    if (parts.length !== 3) {
-      throw new Error(`Invalid date format: ${request.playDate}. Expected YYYY-MM-DD.`);
-    }
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed in Date constructor
-    const day = parseInt(parts[2], 10);
+    // Build target date string e.g. "Jul 12"
+    const [yearStr, monthStr, dayStr] = request.playDate.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr) - 1;
+    const day = Number(dayStr);
     const playDateObj = new Date(year, month, day);
-
     if (isNaN(playDateObj.getTime())) {
       request.status = 'error';
       request.processedDate = new Date().toISOString();
@@ -331,108 +337,57 @@ async function processSingleRequest(page: Page, request: BookingRequest): Promis
       log(`ERROR: Invalid date in request ${request.id}: ${request.playDate}`);
       return { message: `⚠️ Request ${request.id}: Invalid date ${request.playDate}\n`, success: false };
     }
+    const targetDateText = `${playDateObj.toLocaleString('en-US', { month: 'short' })} ${playDateObj.getDate()}`;
+    log(`Attempting to select date: "${targetDateText}"`);
 
-    const targetMonth = playDateObj.toLocaleString('en-US', { month: 'short' });
-    const targetDay = playDateObj.getDate();
-    const targetDateText = `${targetMonth} ${targetDay}`;
-    log(`Attempting to select date: "${targetDateText}" for playDate ${request.playDate}`);
-
-    const dateClicked = await page.evaluate((dateText) => {
-      const dateElements = document.querySelectorAll('div.item.ng-scope.slick-slide');
-      for (const el of dateElements) {
-        const dateDiv = el.querySelector('div.date.ng-binding');
-        if (dateDiv && dateDiv.textContent && dateDiv.textContent.trim().includes(dateText)) {
-          if (el instanceof HTMLElement) {
-            el.click();
-            return true;
-          }
-        }
-      }
-      return false; // Not found
-    }, targetDateText);
-
+    const dateClicked = await clickOnDateInFrame(bookingFrame, targetDateText);
     if (!dateClicked) {
-      log(`ERROR: Could not find or click date element for "${targetDateText}" for request ${request.id}`);
       request.status = 'failed';
       request.processedDate = new Date().toISOString();
-      request.failureReason = `Could not select date "${targetDateText}" on the booking page.`;
-      return {
-        message: `❌ Request ${request.id}: Failed to select date "${targetDateText}"\n`,
-        success: false,
-      };
+      request.failureReason = `Could not select date "${targetDateText}"`;
+      log(`ERROR: Could not click date element for "${targetDateText}"`);
+      return { message: `❌ Request ${request.id}: Failed to select date "${targetDateText}"\n`, success: false };
     }
 
-    log(`Successfully clicked date: "${targetDateText}" for request ${request.id}`);
-    // Wait for UI to update after date selection. Consider replacing with a more specific wait
-    // (e.g., waiting for available time slots to load or a loading indicator to disappear).
-    await page.waitForTimeout(3000); // Increased timeout slightly for safety, adjust as needed
+    log(`Successfully clicked date "${targetDateText}"`);
+    await bookingFrame.waitForTimeout(3000); // TODO: replace with smarter wait
 
-    const availableTimes = await findAvailableTeeSlots(page, request.timeRange);
-
-
+    const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
     if (availableTimes.length === 0) {
       request.status = 'failed';
       request.processedDate = new Date().toISOString();
-      request.failureReason = 'No available times in specified range with 4 spots.';
-      log(`INFO: No available tee times found for request ${request.id} between ${request.timeRange.start}:00 and ${request.timeRange.end}:00 with 4 spots.`);
-      return {
-        message: `❌ Request ${request.id}: No available times between ${request.timeRange.start}:00 and ${request.timeRange.end}:00 with 4 spots.\n`,
-        success: false
-      };
+      request.failureReason = 'No times with 4 spots in range';
+      log(`INFO: No tee times found for request ${request.id}`);
+      return { message: `❌ Request ${request.id}: No available times\n`, success: false };
     }
 
-    if (availableTimes.length > 0) {
-      availableTimes.sort((a, b) => a.sortableTime.localeCompare(b.sortableTime));
-      
-      const selectedSlot = availableTimes[0];
-      log(`Found ${availableTimes.length} available slot(s) with 4 spots. Attempting to book: ${selectedSlot.time} using id ${selectedSlot.id}`);
+    availableTimes.sort((a, b) => a.sortableTime.localeCompare(b.sortableTime));
+    const selectedSlot = availableTimes[0];
+    log(`Attempting to book time ${selectedSlot.time} using id ${selectedSlot.id}`);
 
-      await page.click(`[data-playwright-id="${selectedSlot.id}"]`);
-      await confirmBookingPage(page);
+    await bookingFrame.click(`[data-playwright-id="${selectedSlot.id}"]`);
+    await confirmBookingInFrame(bookingFrame);
 
-      // const confirmationNumber = await page.evaluate(() => {
-      //   const element = document.querySelector('.confirmation-number');
-      //   return element ? element.textContent || '' : '';
-      // });
+    request.status = 'success';
+    request.processedDate = new Date().toISOString();
+    request.bookedTime = selectedSlot.time;
+    request.confirmationNumber = 'TEST'; // TODO: real confirmation number
 
-      request.status = 'success';
-      request.processedDate = new Date().toISOString();
-      request.bookedTime = selectedSlot.time;
-      request.confirmationNumber = "TEST";
-
-      return {
-        message: `✅ Request ${request.id}: Booked for ${selectedSlot.time} (Confirmation: ${request.confirmationNumber})\n`,
-        success: true
-      };
-    }
+    return { message: `✅ Request ${request.id}: Booked for ${selectedSlot.time} (Confirmation: ${request.confirmationNumber})\n`, success: true };
   } catch (error) {
     request.status = 'error';
     request.processedDate = new Date().toISOString();
     request.failureReason = error instanceof Error ? error.message : String(error);
-
-    return {
-      message: `⚠️ Request ${request.id}: Error - ${request.failureReason}\n`,
-      success: false
-    };
+    return { message: `⚠️ Request ${request.id}: Error - ${request.failureReason}\n`, success: false };
   }
-
-  // Fallback return in case no other return was hit (should not happen)
-  return {
-    message: `⚠️ Request ${request.id}: Unknown error occurred\n`,
-    success: false
-  };
 }
 
-const confirmBookingPage = async (page: Page): Promise<void> => {
-  log('Confirming booking');
-  await page.getByText('ADD BUDDIES & GROUPS').click();
-  await page.getByText('Test group (3 people)').click();
-  await page.getByText('BOOK NOW').waitFor({ timeout: 10000 }).catch(() => {
-      log('WARNING: Could not detect navigation success indicator (BOOK NOW button)');
-  });
-  //await page.getByText('BOOK NOW').click();
+const processRequests = async (todayRequests: BookingRequest[], queueData: QueueData, queuePath: string) => {
+  if (isTestMode && simulateBooking) {
+    return await simulateProcessingRequests(todayRequests, queueData, queuePath)
+  }
+  return await processRealRequests(todayRequests, queueData, queuePath);
 }
-
 
 async function processQueue(): Promise<void> {
   log('Starting booking queue processing');
@@ -455,9 +410,7 @@ async function processQueue(): Promise<void> {
   log(`Found ${todayRequests.length} booking requests for today`);
 
   const queuePath = getQueueFilePath();
-  const { results, processedCount } = isTestMode && simulateBooking
-    ? await simulateProcessingRequests(todayRequests, queueData, queuePath)
-    : await processRealRequests(todayRequests, queueData, queuePath);
+  const { results, processedCount } = await processRequests(todayRequests, queueData, queuePath);
 
   log(`Processed ${processedCount} requests`);
   console.log(`::set-output name=processed_count::${processedCount}`);
