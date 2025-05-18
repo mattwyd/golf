@@ -1,0 +1,68 @@
+name: Process Golf Booking Queue
+
+on:
+  schedule:
+    # Run every morning at 7:00 AM
+    - cron: '0 7 * * *'
+  
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  process-booking-queue:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install typescript ts-node @types/node @playwright/test
+          npx playwright install chromium
+          npx playwright install-deps chromium
+          # Create a basic tsconfig.json file
+          echo '{
+            "compilerOptions": {
+              "target": "ES2020",
+              "module": "CommonJS",
+              "strict": true,
+              "esModuleInterop": true,
+              "skipLibCheck": true,
+              "forceConsistentCasingInFileNames": true,
+              "outDir": "./dist"
+            }
+          }' > tsconfig.json
+      
+      - name: Process booking queue
+        id: process-queue
+        run: |
+          npx ts-node process-queue.ts
+        env:
+          GOLF_USERNAME: ${{ secrets.GOLF_USERNAME }}
+          GOLF_PASSWORD: ${{ secrets.GOLF_PASSWORD }}
+      
+      - name: Commit updated queue
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Update booking queue after processing
+          file_pattern: booking-queue.json
+      
+      - name: Send Discord notification
+        if: steps.process-queue.outputs.processed_count > 0
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "🏌️ Golf Booking Queue Processing"
+          description: |
+            Processed ${{ steps.process-queue.outputs.processed_count }} booking requests.
+            
+            ${{ steps.process-queue.outputs.results }}
+          color: "0x28a745"
+          username: Golf Booking Bot

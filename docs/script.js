@@ -1,0 +1,353 @@
+document.addEventListener('DOMContentLoaded', function() {
+    // DOM elements
+    const dateInput = document.getElementById('date');
+    const startTimeInput = document.getElementById('startTime');
+    const endTimeInput = document.getElementById('endTime');
+    const tokenInput = document.getElementById('token');
+    const bookButton = document.getElementById('bookButton');
+    const statusMessage = document.getElementById('statusMessage');
+    const refreshQueueButton = document.getElementById('refreshQueueButton');
+    const queueDataContainer = document.getElementById('queueData');
+    const settingsButton = document.getElementById('settingsButton');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsButton = document.querySelector('.close');
+    const saveSettingsButton = document.getElementById('saveSettingsButton');
+    const repoOwnerInput = document.getElementById('repoOwner');
+    const repoNameInput = document.getElementById('repoName');
+    
+    // Set default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    dateInput.valueAsDate = tomorrow;
+    
+    // Load saved data from localStorage
+    loadSavedData();
+    
+    // Event listeners
+    bookButton.addEventListener('click', bookTeeTime);
+    refreshQueueButton.addEventListener('click', fetchBookingQueue);
+    settingsButton.addEventListener('click', openSettings);
+    closeSettingsButton.addEventListener('click', closeSettings);
+    saveSettingsButton.addEventListener('click', saveSettings);
+    
+    // Close modal if clicking outside of it
+    window.addEventListener('click', function(event) {
+        if (event.target == settingsModal) {
+            closeSettings();
+        }
+    });
+    
+    // Initialize by fetching the queue
+    fetchBookingQueue();
+    
+    // Functions
+    function loadSavedData() {
+        // Load token
+        const savedToken = localStorage.getItem('githubToken');
+        if (savedToken) {
+            tokenInput.value = savedToken;
+        }
+        
+        // Load repository info
+        const repoOwner = localStorage.getItem('repoOwner');
+        const repoName = localStorage.getItem('repoName');
+        
+        if (repoOwner) {
+            repoOwnerInput.value = repoOwner;
+        }
+        
+        if (repoName) {
+            repoNameInput.value = repoName;
+        }
+    }
+    
+    function getRepoInfo() {
+        let repoOwner = localStorage.getItem('repoOwner');
+        let repoName = localStorage.getItem('repoName');
+        
+        // Default values if not set
+        if (!repoOwner || !repoName) {
+            showStatus('Please set repository information in Settings', 'error');
+            return null;
+        }
+        
+        return { owner: repoOwner, name: repoName };
+    }
+    
+    async function bookTeeTime() {
+        const date = dateInput.value;
+        const startTime = startTimeInput.value;
+        const endTime = endTimeInput.value;
+        const token = tokenInput.value;
+        
+        // Basic validation
+        if (!date || !startTime || !endTime || !token) {
+            showStatus('Please fill in all fields.', 'error');
+            return;
+        }
+        
+        if (parseInt(startTime) >= parseInt(endTime)) {
+            showStatus('End time must be after start time.', 'error');
+            return;
+        }
+        
+        const repoInfo = getRepoInfo();
+        if (!repoInfo) return;
+        
+        // Save token to localStorage for convenience
+        localStorage.setItem('githubToken', token);
+        
+        // Show loading status
+        showStatus('Adding booking request to queue... Please wait.', 'info');
+        bookButton.disabled = true;
+        bookButton.textContent = 'Processing...';
+        
+        try {
+            // First, get the current booking queue file
+            const getQueueResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            let queueData;
+            let sha;
+            
+            if (getQueueResponse.status === 200) {
+                // File exists, get its content and SHA
+                const fileData = await getQueueResponse.json();
+                sha = fileData.sha;
+                const content = atob(fileData.content);
+                queueData = JSON.parse(content);
+            } else if (getQueueResponse.status === 404) {
+                // File doesn't exist yet, create initial structure
+                queueData = {
+                    "bookingRequests": [],
+                    "processedRequests": []
+                };
+            } else {
+                const errorData = await getQueueResponse.json();
+                throw new Error(`API responded with status ${getQueueResponse.status}: ${errorData.message}`);
+            }
+            
+            // Create a new booking request
+            const requestId = `${new Date().toISOString().slice(0, 10)}-${Math.floor(Math.random() * 100000)}`;
+            const newRequest = {
+                "id": requestId,
+                "requestDate": new Date().toISOString(),
+                "playDate": date,
+                "timeRange": {
+                    "start": parseInt(startTime),
+                    "end": parseInt(endTime)
+                },
+                "status": "pending",
+                "requestedBy": "web-user"
+            };
+            
+            // Add to queue
+            queueData.bookingRequests.push(newRequest);
+            
+            // Create commit to update the file
+            const updateResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: `Add booking request for ${date}`,
+                    content: btoa(JSON.stringify(queueData, null, 2)),
+                    sha: sha
+                })
+            });
+            
+            if (updateResponse.status === 200 || updateResponse.status === 201) {
+                showStatus(`Successfully added booking request for ${date} to the queue! Check Discord for updates when it processes.`, 'success');
+                // Refresh the queue display
+                fetchBookingQueue();
+            } else {
+                const errorData = await updateResponse.json();
+                throw new Error(`API responded with status ${updateResponse.status}: ${errorData.message}`);
+            }
+        } catch (error) {
+            showStatus(`Error: ${error.message}`, 'error');
+            console.error(error);
+        } finally {
+            bookButton.disabled = false;
+            bookButton.textContent = 'Book Tee Time';
+        }
+    }
+    
+    async function fetchBookingQueue() {
+        const token = tokenInput.value;
+        if (!token) {
+            queueDataContainer.innerHTML = '<p>Please enter your GitHub token to view the queue.</p>';
+            return;
+        }
+        
+        const repoInfo = getRepoInfo();
+        if (!repoInfo) return;
+        
+        refreshQueueButton.disabled = true;
+        refreshQueueButton.textContent = 'Loading...';
+        
+        try {
+            const response = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            if (response.status === 200) {
+                const fileData = await response.json();
+                const content = atob(fileData.content);
+                const queueData = JSON.parse(content);
+                
+                displayQueueData(queueData);
+            } else if (response.status === 404) {
+                queueDataContainer.innerHTML = '<p>No booking queue found in the repository.</p>';
+            } else {
+                const errorData = await response.json();
+                queueDataContainer.innerHTML = `<p>Error fetching queue: ${errorData.message}</p>`;
+            }
+        } catch (error) {
+            queueDataContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+            console.error(error);
+        } finally {
+            refreshQueueButton.disabled = false;
+            refreshQueueButton.textContent = 'Refresh Queue';
+        }
+    }
+    
+    function displayQueueData(queueData) {
+        const pendingRequests = queueData.bookingRequests || [];
+        const processedRequests = queueData.processedRequests || [];
+        
+        let html = '';
+        
+        if (pendingRequests.length === 0 && processedRequests.length === 0) {
+            html = '<p>No booking requests in the queue.</p>';
+        } else {
+            html = '<h3>Pending Requests</h3>';
+            
+            if (pendingRequests.length === 0) {
+                html += '<p>No pending requests.</p>';
+            } else {
+                pendingRequests.forEach(request => {
+                    html += `
+                        <div class="queue-item pending">
+                            <h3>${formatDate(request.playDate)}</h3>
+                            <p><span class="label">Time Range:</span> ${request.timeRange.start}:00 - ${request.timeRange.end}:00</p>
+                            <p><span class="label">Status:</span> Pending</p>
+                            <p><span class="label">Requested:</span> ${formatDateTime(request.requestDate)}</p>
+                        </div>
+                    `;
+                });
+            }
+            
+            html += '<h3>Processed Requests</h3>';
+            
+            if (processedRequests.length === 0) {
+                html += '<p>No processed requests.</p>';
+            } else {
+                // Sort by processed date, most recent first
+                const sortedRequests = [...processedRequests].sort((a, b) => {
+                    return new Date(b.processedDate) - new Date(a.processedDate);
+                });
+                
+                // Only show the last 5 processed requests
+                sortedRequests.slice(0, 5).forEach(request => {
+                    let statusText = '';
+                    let statusClass = '';
+                    
+                    switch (request.status) {
+                        case 'success':
+                            statusText = `Booked for ${request.bookedTime}`;
+                            statusClass = 'success';
+                            break;
+                        case 'failed':
+                            statusText = `Failed: ${request.failureReason || 'No available times'}`;
+                            statusClass = 'failed';
+                            break;
+                        case 'error':
+                            statusText = `Error: ${request.failureReason || 'Unknown error'}`;
+                            statusClass = 'error';
+                            break;
+                        default:
+                            statusText = request.status;
+                            statusClass = '';
+                    }
+                    
+                    html += `
+                        <div class="queue-item ${statusClass}">
+                            <h3>${formatDate(request.playDate)}</h3>
+                            <p><span class="label">Time Range:</span> ${request.timeRange.start}:00 - ${request.timeRange.end}:00</p>
+                            <p><span class="label">Status:</span> ${statusText}</p>
+                            <p><span class="label">Processed:</span> ${formatDateTime(request.processedDate)}</p>
+                            ${request.confirmationNumber ? `<p><span class="label">Confirmation:</span> ${request.confirmationNumber}</p>` : ''}
+                        </div>
+                    `;
+                });
+                
+                if (sortedRequests.length > 5) {
+                    html += `<p>Showing 5 of ${sortedRequests.length} processed requests.</p>`;
+                }
+            }
+        }
+        
+        queueDataContainer.innerHTML = html;
+    }
+    
+    function showStatus(message, type) {
+        statusMessage.textContent = message;
+        statusMessage.className = `status ${type}`;
+        statusMessage.style.display = 'block';
+        
+        // Scroll to the status message
+        statusMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    function openSettings() {
+        settingsModal.style.display = 'block';
+    }
+    
+    function closeSettings() {
+        settingsModal.style.display = 'none';
+    }
+    
+    function saveSettings() {
+        const repoOwner = repoOwnerInput.value.trim();
+        const repoName = repoNameInput.value.trim();
+        
+        if (!repoOwner || !repoName) {
+            alert('Please enter both repository owner and name.');
+            return;
+        }
+        
+        localStorage.setItem('repoOwner', repoOwner);
+        localStorage.setItem('repoName', repoName);
+        
+        closeSettings();
+        showStatus('Settings saved successfully!', 'success');
+        
+        // Refresh the queue with new settings
+        fetchBookingQueue();
+    }
+    
+    function formatDate(dateString) {
+        if (!dateString) return 'Unknown';
+        
+        const date = new Date(dateString);
+        return date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    
+    function formatDateTime(dateTimeString) {
+        if (!dateTimeString) return 'Unknown';
+        
+        const date = new Date(dateTimeString);
+        return date.toLocaleString();
+    }
+});

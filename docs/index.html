@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golf Tee Time Booker</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#28a745">
+    <link rel="apple-touch-icon" href="images/icon-192x192.png">
+</head>
+<body>
+    <div class="container">
+        <h1>🏌️ Golf Tee Time Booker</h1>
+        
+        <div class="form-group">
+            <label for="date">Date:</label>
+            <input type="date" id="date" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="startTime">Start Time (hour):</label>
+            <input type="number" id="startTime" min="5" max="20" value="8" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="endTime">End Time (hour):</label>
+            <input type="number" id="endTime" min="5" max="20" value="12" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="token">GitHub Token:</label>
+            <input type="password" id="token" placeholder="Enter your GitHub token" required>
+            <small class="helper-text">Your token is saved locally and only used for accessing the booking queue.</small>
+        </div>
+        
+        <button id="bookButton">Book Tee Time</button>
+        
+        <div id="statusMessage" class="status"></div>
+        
+        <div class="queue-status">
+            <h2>Booking Queue</h2>
+            <button id="refreshQueueButton" class="secondary-button">Refresh Queue</button>
+            <div id="queueData" class="queue-container">
+                <p>Queue data will load here...</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>© 2025 Golf Tee Time Booker</p>
+        <p><a href="#" id="settingsButton">Settings</a></p>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Settings</h2>
+            
+            <div class="form-group">
+                <label for="repoOwner">Repository Owner:</label>
+                <input type="text" id="repoOwner" placeholder="GitHub Username">
+            </div>
+            
+            <div class="form-group">
+                <label for="repoName">Repository Name:</label>
+                <input type="text" id="repoName" placeholder="Repository Name">
+            </div>
+            
+            <button id="saveSettingsButton">Save Settings</button>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
