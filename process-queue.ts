@@ -180,6 +180,9 @@ async function simulateProcessingRequests(
 const navigateToBookingPage = async (page: Page): Promise<void> => {
   log('Navigating to booking page');
   await page.goto('https://lorabaygolf.clubhouseonline-e3.com/TeeTimes/TeeSheet.aspx');
+  await page.getByText('My Bookings').waitFor({ timeout: 10000 }).catch(() => {
+    log('WARNING: Could not detect navigation success indicator (My Bookings link)');
+  });
 }
 
 async function processRealRequests(
@@ -308,7 +311,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame): Promise<void> => {
   log('Confirming booking inside iframe');
   await bookingFrame.getByText('ADD BUDDIES & GROUPS').click();
   await bookingFrame.getByText('Test group (3 people)').click();
-  await bookingFrame.getByText('BOOK NOW').click();
+  await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
 };
 
 async function processSingleRequest(
@@ -345,7 +348,7 @@ async function processSingleRequest(
     }
 
     log(`Successfully clicked date "${targetDateText}"`);
-    await bookingFrame.waitForTimeout(1000); // TODO: replace with smarter wait
+    await bookingFrame.waitForTimeout(3000); // TODO: replace with smarter wait
 
     const availableTimes = await findAvailableTeeSlotsInFrame(bookingFrame, request.timeRange);
     if (availableTimes.length === 0) {
