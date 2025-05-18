@@ -2,8 +2,8 @@ name: Process Golf Booking Queue
 
 on:
   schedule:
-    # Run every morning at 7:00 AM
-    - cron: '0 7 * * *'
+    # Run every morning at 6:55 AM
+    - cron: '55 6 * * *'
   
   # Allow manual triggering for testing
   workflow_dispatch:
@@ -39,7 +39,21 @@ jobs:
               "outDir": "./dist"
             }
           }' > tsconfig.json
-      
+    
+      # - name: Wait until 7:00 AM
+      #   run: |
+      #     current_time=$(date +%s)
+      #     target_time=$(date -d "today 07:00:00" +%s)
+          
+      #     # If current time is already past 7:00 AM, don't wait
+      #     if [ $current_time -lt $target_time ]; then
+      #       sleep_seconds=$((target_time - current_time))
+      #       echo "Waiting for $sleep_seconds seconds until 7:00 AM..."
+      #       sleep $sleep_seconds
+      #     else
+      #       echo "It's already past 7:00 AM, proceeding immediately"
+      #     fi
+
       - name: Process booking queue
         id: process-queue
         run: |
@@ -54,15 +68,3 @@ jobs:
           commit_message: Update booking queue after processing
           file_pattern: booking-queue.json
       
-      - name: Send Discord notification
-        if: steps.process-queue.outputs.processed_count > 0
-        uses: sarisia/actions-status-discord@v1
-        with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          title: "🏌️ Golf Booking Queue Processing"
-          description: |
-            Processed ${{ steps.process-queue.outputs.processed_count }} booking requests.
-            
-            ${{ steps.process-queue.outputs.results }}
-          color: "0x28a745"
-          username: Golf Booking Bot

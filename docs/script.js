@@ -33,6 +33,14 @@ document.addEventListener('DOMContentLoaded', function() {
     closeSettingsButton.addEventListener('click', closeSettings);
     saveSettingsButton.addEventListener('click', saveSettings);
     
+    // Add event delegation for delete buttons
+    queueDataContainer.addEventListener('click', function(event) {
+        if (event.target.classList.contains('delete-button')) {
+            const requestId = event.target.getAttribute('data-id');
+            deleteQueueItem(requestId);
+        }
+    });
+    
     // Close modal if clicking outside of it
     window.addEventListener('click', function(event) {
         if (event.target == settingsModal) {
@@ -290,6 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 pendingRequests.forEach(request => {
                     html += `
                         <div class="queue-item pending">
+                            <button class="delete-button" data-id="${request.id}">×</button>
                             <h3>${formatDate(request.playDate)}</h3>
                             <p><span class="label">Time Range:</span> ${request.timeRange.start}:00 - ${request.timeRange.end}:00</p>
                             <p><span class="label">Status:</span> Pending</p>
@@ -400,5 +409,76 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const date = new Date(dateTimeString);
         return date.toLocaleString();
+    }
+    
+    async function deleteQueueItem(requestId) {
+        const token = tokenInput.value;
+        if (!token) {
+            showStatus('Please enter your Booking Password to delete items.', 'error');
+            return;
+        }
+        
+        const repoInfo = getRepoInfo();
+        if (!repoInfo) return;
+        
+        showStatus('Deleting request... Please wait.', 'info');
+        
+        try {
+            // First, get the current booking queue file
+            const getQueueResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            
+            if (getQueueResponse.status !== 200) {
+                const errorData = await getQueueResponse.json();
+                throw new Error(`API responded with status ${getQueueResponse.status}: ${errorData.message}`);
+            }
+            
+            // Get file content and SHA
+            const fileData = await getQueueResponse.json();
+            const sha = fileData.sha;
+            const content = atob(fileData.content);
+            const queueData = JSON.parse(content);
+            
+            // Find and remove the item with the matching ID
+            const index = queueData.bookingRequests.findIndex(request => request.id === requestId);
+            
+            if (index === -1) {
+                throw new Error(`Request with ID ${requestId} not found in the queue.`);
+            }
+            
+            // Remove the item from the array
+            queueData.bookingRequests.splice(index, 1);
+            
+            // Create commit to update the file
+            const updateResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: `Delete booking request ${requestId}`,
+                    content: btoa(JSON.stringify(queueData, null, 2)),
+                    sha: sha
+                })
+            });
+            
+            if (updateResponse.status === 200 || updateResponse.status === 201) {
+                showStatus('Successfully removed the booking request from the queue!', 'success');
+                // Refresh the queue display
+                fetchBookingQueue();
+            } else {
+                const errorData = await updateResponse.json();
+                throw new Error(`API responded with status ${updateResponse.status}: ${errorData.message}`);
+            }
+        } catch (error) {
+            showStatus(`Error: ${error.message}`, 'error');
+            console.error(error);
+        }
     }
 });

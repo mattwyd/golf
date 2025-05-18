@@ -141,6 +141,7 @@ button:disabled {
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
+    position: relative;
 }
 
 .queue-item.pending {
@@ -168,6 +169,29 @@ button:disabled {
 
 .queue-item .label {
     font-weight: bold;
+}
+
+.delete-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.delete-button:hover {
+    background-color: #cc0000;
 }
 
 .queue-status {
