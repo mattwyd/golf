@@ -40,6 +40,7 @@ interface AvailableTime {
 const isTestMode = process.env.TEST_MODE === 'true';
 const simulateBooking = process.env.SIMULATE_BOOKING === 'true';
 const takeScreenshots = process.env.TAKE_SCREENSHOTS !== 'false'; // Default to true unless explicitly disabled
+const headless = process.env.HEADLESS !== 'false'; // Default to true unless explicitly disabled
 
 // Helper function to get today's date with optional override from environment variable
 const getTodayDate = (): string => {
@@ -204,7 +205,7 @@ async function processRealRequests(
   let browser: Browser | null = null;
 
   try {
-    browser = await chromium.launch({ headless: false });
+    browser = await chromium.launch({ headless: headless });
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
