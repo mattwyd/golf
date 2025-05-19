@@ -9,8 +9,8 @@ dotenv.config();
 
 // Define types for our queue data
 interface TimeRange {
-  start: number;
-  end: number;
+  start: string;
+  end: string;
 }
 
 interface BookingRequest {
@@ -92,8 +92,8 @@ const createTestData = (): void => {
           requestDate: new Date().toISOString(),
           playDate: today,
           timeRange: {
-            start: 8,
-            end: 12
+            start: "08:00",
+            end: "12:00",
           },
           status: 'pending',
           requestedBy: 'test-user'
@@ -155,10 +155,36 @@ async function initializeQueue(): Promise<QueueData> {
 }
 
 function filterTodayRequests(queueData: QueueData): BookingRequest[] {
-  const today = getTodayDate();
-  return queueData.bookingRequests.filter(request =>
-    request.playDate === today && request.status === 'pending'
-  );
+  const today = getTodayDate(); // today is a 'YYYY-MM-DD' string
+
+  // Date string for exactly 30 days from 'today'
+  const thirtyDaysFromToday_DateObj = new Date(today);
+  thirtyDaysFromToday_DateObj.setDate(thirtyDaysFromToday_DateObj.getDate() + 30);
+  const thirtyDaysFromTodayString = thirtyDaysFromToday_DateObj.toISOString().split('T')[0];
+
+  // Date strings for 3 days before and 3 days after 'today'
+  const todayDateObjForRange = new Date(today);
+
+  const dateMinus3 = new Date(todayDateObjForRange);
+  dateMinus3.setDate(todayDateObjForRange.getDate() - 3);
+  const threeDaysBeforeTodayString = dateMinus3.toISOString().split('T')[0];
+
+  const datePlus3 = new Date(todayDateObjForRange);
+  datePlus3.setDate(todayDateObjForRange.getDate() + 3);
+  const threeDaysAfterTodayString = datePlus3.toISOString().split('T')[0];
+
+  return queueData.bookingRequests.filter(request => {
+    if (request.status !== 'pending') {
+      return false;
+    }
+    // Condition 1: playDate is exactly 30 days from 'today'
+    const isExactly30Days = request.playDate === thirtyDaysFromTodayString;
+
+    // Condition 2: playDate is within 3 days of 'today' (inclusive)
+    const isWithin3DaysOfToday = request.playDate >= threeDaysBeforeTodayString && request.playDate <= threeDaysAfterTodayString;
+
+    return isExactly30Days || isWithin3DaysOfToday;
+  });
 }
 
 async function simulateProcessingRequests(
@@ -254,7 +280,7 @@ async function findAvailableTeeSlotsInFrame(
   bookingFrame: Frame,
   timeRange: TimeRange
 ): Promise<Array<{ time: string; id: string; sortableTime: string }>> {
-  return bookingFrame.evaluate(({ startHour, endHour }) => {
+  return bookingFrame.evaluate(({ timeRangeStart, timeRangeEnd }) => {
     const slots: Array<{ time: string; id: string; sortableTime: string }> = [];
     let slotIdCounter = 0;
 
@@ -272,6 +298,15 @@ async function findAvailableTeeSlotsInFrame(
       return { hour, minute, formattedTime: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` };
     };
 
+    // Helper to convert "HH:MM" string to a comparable number (e.g., "09:30" -> 9.5)
+    const timeStringToNumber = (timeStr: string): number => {
+      const [hour, minute] = timeStr.split(':').map(Number);
+      return hour + minute / 60;
+    };
+
+    const startHourNum = timeStringToNumber(timeRangeStart);
+    const endHourNum = timeStringToNumber(timeRangeEnd);
+
     const flexRows = document.querySelectorAll('div.flex-row.ng-scope');
     flexRows.forEach(row => {
       if (row.classList.contains('unavailable')) return;
@@ -284,13 +319,16 @@ async function findAvailableTeeSlotsInFrame(
       const timeStrMatch = timeDiv.textContent.trim().match(/(\d{1,2}:\d{2}\s*(?:AM|PM))$/i);
       if (!timeStrMatch || !timeStrMatch[1]) return;
       const parsed = parseTime(timeStrMatch[1]);
-      if (!parsed || parsed.hour < startHour || parsed.hour > endHour) return;
+      // Compare based on the numeric representation of the 24-hour time
+      if (!parsed) return;
+      const slotTimeNum = parsed.hour + parsed.minute / 60;
+      if (slotTimeNum < startHourNum || slotTimeNum > endHourNum) return;
       const uniqueId = `playwright-slot-${slotIdCounter++}`;
       if (timeDiv instanceof HTMLElement) timeDiv.setAttribute('data-playwright-id', uniqueId);
       slots.push({ time: parsed.formattedTime, id: uniqueId, sortableTime: parsed.formattedTime });
     });
     return slots;
-  }, { startHour: timeRange.start, endHour: timeRange.end });
+  }, { timeRangeStart: timeRange.start, timeRangeEnd: timeRange.end });
   
 }
 

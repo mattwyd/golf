@@ -5,8 +5,8 @@
       "requestDate": "2025-05-17T12:00:00Z",
       "playDate": "2025-05-17",
       "timeRange": {
-        "start": 9,
-        "end": 12
+        "start": "09:00",
+        "end": "10:00"
       },
       "status": "success",
       "requestedBy": "test-user",
