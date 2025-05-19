@@ -232,7 +232,7 @@ async function processRealRequests(
   let results = '';
   let processedCount = 0;
   let browser: Browser | null = null;
-  const maxRetries = 10;
+  const maxRetries = 3;
   const retryDelay = 30000; // 10 seconds
 
   try {
