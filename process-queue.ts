@@ -50,7 +50,13 @@ const getTodayDate = (): string => {
     log(`Using date override: ${dateOverride}`);
     return dateOverride;
   }
-  return new Date().toISOString().split('T')[0];
+  // Get date in EST
+  const estDate = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const dateObj = new Date(estDate);
+  const year = dateObj.getFullYear();
+  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+  const day = dateObj.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // Setup logging
@@ -165,9 +171,6 @@ function filterTodayRequests(queueData: QueueData): BookingRequest[] {
   // Date strings for 3 days before and 3 days after 'today'
   const todayDateObjForRange = new Date(today);
 
-  const dateMinus3 = new Date(todayDateObjForRange);
-  dateMinus3.setDate(todayDateObjForRange.getDate() - 3);
-  const threeDaysBeforeTodayString = dateMinus3.toISOString().split('T')[0];
 
   const datePlus3 = new Date(todayDateObjForRange);
   datePlus3.setDate(todayDateObjForRange.getDate() + 3);
@@ -181,7 +184,7 @@ function filterTodayRequests(queueData: QueueData): BookingRequest[] {
     const isExactly30Days = request.playDate === thirtyDaysFromTodayString;
 
     // Condition 2: playDate is within 3 days of 'today' (inclusive)
-    const isWithin3DaysOfToday = request.playDate >= threeDaysBeforeTodayString && request.playDate <= threeDaysAfterTodayString;
+    const isWithin3DaysOfToday = request.playDate >= today && request.playDate <= threeDaysAfterTodayString;
 
     return isExactly30Days || isWithin3DaysOfToday;
   });
@@ -238,11 +241,11 @@ async function processRealRequests(
     });
     const page = await context.newPage();
     await loginToWebsite(page);
-    await navigateToBookingPage(page);
-    const bookingFrame = await getBookingFrame(page);
-    await waitForGolfCourseElement(bookingFrame);
-    await bookingFrame.waitForLoadState('networkidle');
     for (const request of todayRequests) {
+      await navigateToBookingPage(page);
+      const bookingFrame = await getBookingFrame(page);
+      await waitForGolfCourseElement(bookingFrame);
+      await bookingFrame.waitForLoadState('networkidle');
       const result = await processSingleRequest(page, bookingFrame, request);
       results += result.message;
       processedCount += result.success ? 1 : 0;
@@ -433,7 +436,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?
   await bookingFrame.getByText('Test group (3 people)').click();
   
   // Click the book now button
-  await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
+  //await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
   await bookingFrame.waitForLoadState('networkidle');
   await bookingFrame.waitForTimeout(3000); // Wait for 3 seconds to allow data to load
   // Take a screenshot after booking to verify success (if enabled)
