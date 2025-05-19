@@ -3,7 +3,7 @@ name: Process Golf Booking Queue
 on:
   schedule:
     # Run every morning at 6:55 AM
-    - cron: '55 6 * * *'
+    - cron: '55 10 * * *'
   
   # Allow manual triggering for testing
   workflow_dispatch:
@@ -54,15 +54,15 @@ jobs:
         if: github.event_name == 'schedule'
         run: |
           current_time=$(date +%s)
-          target_time=$(date -d "today 07:00:00" +%s)
+          target_time=$(date -u -d "today 11:00:00" +%s)
           
-          # If current time is already past 7:00 AM, don't wait
+          # If current time is already past 11:00 AM UTC, don't wait
           if [ $current_time -lt $target_time ]; then
             sleep_seconds=$((target_time - current_time))
-            echo "Waiting for $sleep_seconds seconds until 7:00 AM..."
+            echo "Waiting for $sleep_seconds seconds until 11:00 AM UTC..."
             sleep $sleep_seconds
           else
-            echo "It's already past 7:00 AM, proceeding immediately"
+            echo "It's already past 11:00 AM UTC, proceeding immediately"
           fi
 
       - name: Process booking queue

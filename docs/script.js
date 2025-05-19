@@ -408,8 +408,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function formatDate(dateString) {
         if (!dateString) return 'Unknown';
-        
-        const date = new Date(dateString);
+        const parts = dateString.split('-');
+        const date = new Date(parts[0], parts[1]-1, parts[2]);
         return date.toLocaleDateString('en-US', { timeZone: "America/New_York", weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
     }
     
