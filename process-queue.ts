@@ -464,8 +464,7 @@ const screenshotWebsiteState = async (page: Page, screenshotName: string): Promi
 const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?: string): Promise<void> => {
   log('Confirming booking inside iframe');
   await bookingFrame.getByText('ADD BUDDIES & GROUPS').click();
-  await bookingFrame.getByText('Test group (3 people)').click();
-  
+  await bookingFrame.getByText(/Test group \(\d+ people\)/i).click();
   // Click the book now button
   await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
   await bookingFrame.waitForLoadState('networkidle');
@@ -529,7 +528,7 @@ async function processSingleRequest(
       return { message: `❌ Request ${request.id}: No available times\n`, success: false };
     }
 
-    availableTimes.sort((a, b) => a.sortableTime.localeCompare(b.sortableTime));
+    availableTimes.sort((a, b) => a.sortableTime.localeCompare(b.sortableTime)).reverse();
     const selectedSlot = availableTimes[0];
     log(`Attempting to book time ${selectedSlot.time} using id ${selectedSlot.id}`);
 
