@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!dateString) return 'Unknown';
         
         const date = new Date(dateString);
-        return date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('en-US', { timeZone: "America/New_York", weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
     }
     
     function formatDateTime(dateTimeString) {
