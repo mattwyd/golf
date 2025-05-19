@@ -232,6 +232,8 @@ async function processRealRequests(
   let results = '';
   let processedCount = 0;
   let browser: Browser | null = null;
+  const maxRetries = 3;
+  const retryDelay = 10000; // 10 seconds
 
   try {
     browser = await chromium.launch({ headless: headless });
@@ -242,13 +244,42 @@ async function processRealRequests(
     const page = await context.newPage();
     await loginToWebsite(page);
     for (const request of todayRequests) {
-      await navigateToBookingPage(page);
-      const bookingFrame = await getBookingFrame(page);
-      await waitForGolfCourseElement(bookingFrame);
-      await bookingFrame.waitForLoadState('networkidle');
-      const result = await processSingleRequest(page, bookingFrame, request);
-      results += result.message;
-      processedCount += result.success ? 1 : 0;
+      let attempt = 0;
+      let requestProcessedSuccessfully = false;
+      let requestResultMessage = '';
+
+      while (attempt < maxRetries && !requestProcessedSuccessfully) {
+        attempt++;
+        if (attempt > 1) {
+          log(`Retrying request ${request.id}, attempt ${attempt} of ${maxRetries}...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+        
+        // Navigate to booking page for each attempt, in case of navigation issues during previous attempts
+        await navigateToBookingPage(page);
+        const bookingFrame = await getBookingFrame(page);
+        await waitForGolfCourseElement(bookingFrame);
+        await bookingFrame.waitForLoadState('networkidle');
+        
+        const result = await processSingleRequest(page, bookingFrame, request);
+        requestResultMessage = result.message;
+        requestProcessedSuccessfully = result.success;
+
+        if (requestProcessedSuccessfully) {
+          log(`Request ${request.id} processed successfully on attempt ${attempt}.`);
+          break; 
+        } else {
+          log(`Request ${request.id} failed on attempt ${attempt}. Reason: ${request.failureReason}`);
+          // If it's the last attempt and still failed, ensure the message reflects the final failure.
+          if (attempt === maxRetries) {
+            log(`Request ${request.id} failed after ${maxRetries} attempts.`);
+          }
+        }
+      }
+      results += requestResultMessage; // Append the message from the last attempt
+      if (requestProcessedSuccessfully) {
+        processedCount++;
+      }
     }
   } catch (error) {
     log(`Fatal error: ${error instanceof Error ? error.message : String(error)}`);
