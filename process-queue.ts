@@ -397,7 +397,7 @@ const confirmBookingInFrame = async (bookingFrame: Frame, page: Page, requestId?
   // Click the book now button
   await bookingFrame.locator('a.btn.btn-primary:has-text("BOOK NOW")').click();
   await bookingFrame.waitForLoadState('networkidle');
-  
+  await bookingFrame.waitForTimeout(3000); // Wait for 3 seconds to allow data to load
   // Take a screenshot after booking to verify success (if enabled)
   if (takeScreenshots) {
     log('Taking confirmation screenshot');
