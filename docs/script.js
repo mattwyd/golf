@@ -16,9 +16,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const repoNameInput = document.getElementById('repoName');
     
     // Set default date to 30 days from today
-    const defaultDate = new Date();
-    defaultDate.setDate(defaultDate.getDate() + 30);
-    dateInput.valueAsDate = defaultDate;
+    const today = new Date();
+    const defaultDate = new Date(today);
+    defaultDate.setDate(today.getDate() + 30);
+    
+    // Format date as YYYY-MM-DD for input[type="date"]
+    const year = defaultDate.getFullYear();
+    const month = (defaultDate.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed
+    const day = defaultDate.getDate().toString().padStart(2, '0');
+    dateInput.value = `${year}-${month}-${day}`;
     
     // Auto-detect GitHub repository information from URL (for GitHub Pages)
     autoDetectRepoInfo();
