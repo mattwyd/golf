@@ -232,8 +232,8 @@ async function processRealRequests(
   let results = '';
   let processedCount = 0;
   let browser: Browser | null = null;
-  const maxRetries = 3;
-  const retryDelay = 10000; // 10 seconds
+  const maxRetries = 10;
+  const retryDelay = 30000; // 10 seconds
 
   try {
     browser = await chromium.launch({ headless: headless });
