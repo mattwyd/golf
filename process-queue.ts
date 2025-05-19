@@ -287,10 +287,8 @@ async function processRealRequests(
     if (browser) await browser.close();
   }
 
-  queueData.bookingRequests = queueData.bookingRequests.filter(request =>
-    !(request.playDate === getTodayDate() && request.status !== 'pending')
-  );
-  queueData.processedRequests = [...todayRequests.filter(request => request.status === "pending"), ...queueData.processedRequests];
+  queueData.bookingRequests = queueData.bookingRequests.filter(request => request.status === 'pending');
+  queueData.processedRequests = [...todayRequests, ...queueData.processedRequests];
   fs.writeFileSync(queuePath, JSON.stringify(queueData, null, 2));
   return { results, processedCount };
 }
