@@ -15,10 +15,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const repoOwnerInput = document.getElementById('repoOwner');
     const repoNameInput = document.getElementById('repoName');
     
-    // Set default date to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    dateInput.valueAsDate = tomorrow;
+    // Set default date to 30 days from today
+    const defaultDate = new Date();
+    defaultDate.setDate(defaultDate.getDate() + 30);
+    dateInput.valueAsDate = defaultDate;
     
     // Auto-detect GitHub repository information from URL (for GitHub Pages)
     autoDetectRepoInfo();
