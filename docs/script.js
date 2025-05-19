@@ -135,8 +135,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     async function bookTeeTime() {
         const date = dateInput.value;
-        const startTime = startTimeInput.value;
-        const endTime = endTimeInput.value;
+        const startTime = startTimeInput.value; // Keep as string HH:MM
+        const endTime = endTimeInput.value;   // Keep as string HH:MM
         const token = tokenInput.value;
         
         // Basic validation
@@ -145,7 +145,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        if (parseInt(startTime) >= parseInt(endTime)) {
+        // Convert HH:MM to minutes for comparison
+        const startTimeInMinutes = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
+        const endTimeInMinutes = parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]);
+
+        if (startTimeInMinutes >= endTimeInMinutes) {
             showStatus('End time must be after start time.', 'error');
             return;
         }
@@ -197,11 +201,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 "requestDate": new Date().toISOString(),
                 "playDate": date,
                 "timeRange": {
-                    "start": parseInt(startTime),
-                    "end": parseInt(endTime)
+                    "start": startTime, // Store as HH:MM string
+                    "end": endTime      // Store as HH:MM string
                 },
-                "status": "pending",
-                "requestedBy": "web-user"
+                "status": "pending"
             };
             
             // Add to queue
