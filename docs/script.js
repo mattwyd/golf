@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveSettingsButton = document.getElementById('saveSettingsButton');
     const repoOwnerInput = document.getElementById('repoOwner');
     const repoNameInput = document.getElementById('repoName');
+    const globalLoader = document.getElementById('globalLoader');
     
     // Set default date to 30 days from today
     const today = new Date();
@@ -139,6 +140,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return { owner: repoOwner, name: repoName };
     }
     
+    function showGlobalLoader() {
+        if (globalLoader) globalLoader.style.display = 'flex';
+    }
+
+    function hideGlobalLoader() {
+        if (globalLoader) globalLoader.style.display = 'none';
+    }
+
     async function bookTeeTime() {
         const date = dateInput.value;
         const startTime = startTimeInput.value; // Keep as string HH:MM
@@ -170,7 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus('Adding booking request to queue... Please wait.', 'info');
         bookButton.disabled = true;
         bookButton.textContent = 'Processing...';
-        
+        showGlobalLoader();
+
         try {
             // First, get the current booking queue file
             const getQueueResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
@@ -240,18 +250,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(`API responded with status ${updateResponse.status}: ${errorData.message}`);
             }
         } catch (error) {
-            showStatus(`Error: ${error.message}`, 'error');
-            console.error(error);
+            showStatus(`Error booking tee time: ${error.message}`, 'error');
         } finally {
             bookButton.disabled = false;
             bookButton.textContent = 'Book Tee Time';
+            hideGlobalLoader();
         }
     }
     
     async function fetchBookingQueue() {
         const token = tokenInput.value;
         if (!token) {
-            queueDataContainer.innerHTML = '<p>Please enter your Booking Password to view the queue.</p>';
+            showStatus('Please enter your password to fetch the queue.', 'error');
             return;
         }
         
@@ -260,6 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         refreshQueueButton.disabled = true;
         refreshQueueButton.textContent = 'Loading...';
+        showGlobalLoader();
         
         try {
             const response = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
@@ -282,11 +293,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 queueDataContainer.innerHTML = `<p>Error fetching queue: ${errorData.message}</p>`;
             }
         } catch (error) {
-            queueDataContainer.innerHTML = `<p>Error: ${error.message}</p>`;
-            console.error(error);
+            showStatus(`Error fetching queue: ${error.message}`, 'error');
         } finally {
             refreshQueueButton.disabled = false;
             refreshQueueButton.textContent = 'Refresh Queue';
+            hideGlobalLoader();
         }
     }
     
@@ -423,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function deleteQueueItem(requestId) {
         const token = tokenInput.value;
         if (!token) {
-            showStatus('Please enter your Booking Password to delete items.', 'error');
+            showStatus('Please enter your password to delete the request.', 'error');
             return;
         }
         
@@ -431,6 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!repoInfo) return;
         
         showStatus('Deleting request... Please wait.', 'info');
+        showGlobalLoader();
         
         try {
             // First, get the current booking queue file
@@ -486,8 +498,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(`API responded with status ${updateResponse.status}: ${errorData.message}`);
             }
         } catch (error) {
-            showStatus(`Error: ${error.message}`, 'error');
-            console.error(error);
+            showStatus(`Error deleting request: ${error.message}`, 'error');
+        } finally {
+            hideGlobalLoader();
         }
     }
 });
