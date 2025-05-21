@@ -184,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // First, get the current booking queue file
             const getQueueResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                cache: 'no-cache',
                 headers: {
                     'Authorization': `token ${token}`,
                     'Accept': 'application/vnd.github.v3+json'
@@ -274,6 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             const response = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                cache: 'no-cache',
                 headers: {
                     'Authorization': `token ${token}`,
                     'Accept': 'application/vnd.github.v3+json'
@@ -447,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // First, get the current booking queue file
             const getQueueResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/contents/booking-queue.json`, {
+                cache: 'no-cache',
                 headers: {
                     'Authorization': `token ${token}`,
                     'Accept': 'application/vnd.github.v3+json'
