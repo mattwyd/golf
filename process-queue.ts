@@ -144,8 +144,8 @@ const logEmptyBooking = (queuePath: string): void => {
     processedRequests: []
   };
   fs.writeFileSync(queuePath, JSON.stringify(emptyQueue, null, 2));
-  console.log('::set-output name=processed_count::0');
-  console.log('::set-output name=results::No booking requests in queue.');
+  console.log('processed_count=0' + (process.env.GITHUB_OUTPUT ? ' >> $GITHUB_OUTPUT' : ''));
+  console.log('results=No booking requests in queue.' + (process.env.GITHUB_OUTPUT ? ' >> $GITHUB_OUTPUT' : ''));
   return;
 }
 
@@ -566,8 +566,8 @@ async function processQueue(): Promise<void> {
 
   if (todayRequests.length === 0) {
     log(`No booking requests for today (${getTodayDate()})`);
-    console.log('::set-output name=processed_count::0');
-    console.log('::set-output name=results::No booking requests for today.');
+    console.log('processed_count=0' + (process.env.GITHUB_OUTPUT ? ' >> $GITHUB_OUTPUT' : ''));
+    console.log('results=No booking requests for today.' + (process.env.GITHUB_OUTPUT ? ' >> $GITHUB_OUTPUT' : ''));
     return;
   }
 
@@ -577,8 +577,8 @@ async function processQueue(): Promise<void> {
   const { results, processedCount } = await processRequests(todayRequests, queueData, queuePath);
 
   log(`Processed ${processedCount} requests`);
-  console.log(`::set-output name=processed_count::${processedCount}`);
-  console.log(`::set-output name=results::${results}`);
+  console.log(`processed_count=${processedCount}` + (process.env.GITHUB_OUTPUT ? ' >> $GITHUB_OUTPUT' : ''));
+  console.log(`results=${results}` + (process.env.GITHUB_OUTPUT ? ' >> $GITHUB_OUTPUT' : ''));
   logStream.end();
 }
 
