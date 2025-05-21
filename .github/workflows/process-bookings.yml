@@ -11,6 +11,8 @@ on:
 jobs:
   process-booking-queue:
     runs-on: ubuntu-latest
+    env:
+      DISCORD_WEBHOOK_AVAILABLE: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
     
     steps:
       - name: Checkout repository
@@ -103,12 +105,20 @@ jobs:
 
           if [ ${#files_array[@]} -eq 0 ]; then
             echo "No screenshots found to send to Discord."
-            echo "::set-output name=files_list::"
+            echo "files_list=" >> $GITHUB_OUTPUT
           else
             # Join array elements with comma
             joined_files=$(printf ",%s" "${files_array[@]}")
             joined_files=${joined_files:1} # Remove leading comma
             echo "Screenshots to send: $joined_files"
-            echo "::set-output name=files_list::$joined_files"
+            echo "files_list=$joined_files" >> $GITHUB_OUTPUT
           fi
         shell: bash
+
+      - name: Send Images to Discord
+        if: ${{ env.DISCORD_WEBHOOK_AVAILABLE && steps.list_screenshots.outputs.files_list != '' }}
+        uses: MineBartekSA/discord-webhook@v2.1.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: "Job finished! Here are the screenshots from the booking process:"
+          attachment: ${{ steps.list_screenshots.outputs.files_list }}
