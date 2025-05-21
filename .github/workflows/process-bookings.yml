@@ -112,18 +112,3 @@ jobs:
             echo "::set-output name=files_list::$joined_files"
           fi
         shell: bash
-
-      - name: Send Discord notification
-        if: success() && env.TAKE_SCREENSHOTS != 'false' && secrets.DISCORD_WEBHOOK_URL != ''
-        uses: tsayen/discord-webhook-action@v2
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content: |
-            Golf booking process finished.
-            Status: ${{ steps.process-queue.outcome }}
-            ${{ steps.auto_commit_queue.outputs.changed_files == 'true' && format('Queue updated in commit: {0}/{1}/commit/{2}', github.server_url, github.repository, steps.auto_commit_queue.outputs.commit_hash) || 'Booking queue: No changes.' }}
-            Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            ${{ steps.list_screenshots.outputs.files_list != '' && 'Screenshots are attached.' || 'No screenshots were generated to attach.' }}
-          file: ${{ steps.list_screenshots.outputs.files_list }}
-          username: "Golf Bot"
-          # avatar_url: "YOUR_AVATAR_URL_HERE" # Optional: uncomment and set your avatar URL
