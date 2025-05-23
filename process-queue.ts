@@ -454,7 +454,7 @@ async function processRealRequests(
         if (process.env.IS_SCHEDULED_RUN && attempt === 1) {
           log('Waiting until 7:00 AM ET before processing requests');
           try {
-            await sleepUntilTimeInZone(23, 3, 'America/New_York');
+            await sleepUntilTimeInZone(23, 5, 'America/New_York');
             log('Target time reached - starting request processing');
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
