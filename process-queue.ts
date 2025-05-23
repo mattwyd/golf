@@ -451,10 +451,10 @@ async function processRealRequests(
         log(`Logged in successfully at ${currentTimeInNewYork}`);
         log(`Is Scheduled Run: ${process.env.IS_SCHEDULED_RUN}`)
         // Wait until 7:00 AM ET after login but before processing requests
-        if (process.env.IS_SCHEDULED_RUN && attempt === 1) {
+        if (process.env.IS_SCHEDULED_RUN == "true" && attempt === 1) {
           log('Waiting until 7:00 AM ET before processing requests');
           try {
-            await sleepUntilTimeInZone(23, 5, 'America/New_York');
+            await sleepUntilTimeInZone(23, 7, 'America/New_York');
             log('Target time reached - starting request processing');
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
